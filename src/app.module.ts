@@ -1,7 +1,5 @@
 import { Module } from '@nestjs/common';
 import { CommandModule } from 'nestjs-command';
-import { UserCommand } from './user/user.command';
-import { UserService } from './user/user.service';
 import { FaDataMigrateCommand } from './fa-data-migrate/fa-data-migrate.command';
 import { FaDataMigrateService } from './fa-data-migrate/fa-data-migrate.service';
 import { ConfigModule } from '@nestjs/config';
@@ -19,8 +17,6 @@ import { FaDataMigrateController } from './fa-data-migrate/fa-data-migrate.contr
     CommandModule,
   ],
   providers: [
-    UserCommand,
-    UserService,
     FaDataMigrateCommand,
     FaDataMigrateService,
     AppService,
