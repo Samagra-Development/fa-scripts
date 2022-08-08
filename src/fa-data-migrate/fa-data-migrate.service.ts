@@ -1,4 +1,9 @@
-import { HttpException, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  Injectable,
+  Logger,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import {
   FusionAuthClient,
   SearchResponse,
@@ -6,7 +11,6 @@ import {
   User,
 } from '@fusionauth/typescript-client';
 import ClientResponse from '@fusionauth/typescript-client/build/src/ClientResponse';
-import { doc } from 'prettier';
 import { BasePrefixes } from './base-prefixes';
 import { randomInt } from 'crypto';
 import * as fs from 'fs';
@@ -19,18 +23,22 @@ export class FaDataMigrateService {
   private sourceFaApiKey: string;
   private targetFaBaseUrl: string;
   private targetFaApiKey: string;
-  private defaultUserImportPassword: string;
+  private readonly defaultUserImportPassword: string;
   private allUsernamePrefixes: Array<string>;
+
+  private readonly logger = new Logger(FaDataMigrateService.name); // logger instance
 
   /**
    * Holds the additional information about the downloaded data which must be present in target FA before importing users
    * @private
    */
   private downloadAddons: {
+    users: Array<User>;
     uniqueIds: object;
     groups: object;
     applicationIds: object;
   } = {
+    users: [],
     uniqueIds: {},
     groups: {},
     applicationIds: {},
@@ -98,7 +106,7 @@ export class FaDataMigrateService {
     startRow: number,
     prefix: string,
   ) {
-    console.log(
+    this.logger.log(
       `Prefix: ${prefix} | ${startRow} | ${numberOfResults} | Fetching...`,
     );
     const searchRequest = {
@@ -141,7 +149,7 @@ export class FaDataMigrateService {
         },
       )
       .catch((e): { total: number; users: Array<User> } => {
-        console.log(
+        this.logger.error(
           `Could not fetch users for applicationId ${applicationId}`,
           JSON.stringify(e),
         );
@@ -163,7 +171,7 @@ export class FaDataMigrateService {
       try {
         result = await promiseOrTimeout;
       } catch (error) {
-        console.log(error);
+        this.logger.error(error);
         result = null;
       } finally {
         clearTimeout(timeoutId);
@@ -188,7 +196,6 @@ export class FaDataMigrateService {
       const prefix = randomItem(this.allUsernamePrefixes).pop(); // pop an item from array
       let startRow = 0;
       let totalResults = 0;
-      let users = [];
       while (true) {
         const result = await this.fetchUsersForPrefix(
           applicationId,
@@ -196,21 +203,20 @@ export class FaDataMigrateService {
           startRow,
           prefix,
         );
-        console.log(
+        this.logger.log(
           `Prefix: ${prefix} | ${startRow} | ${numberOfResults} | FETCHED`,
         );
         if (result === null) {
-          console.error(
+          this.logger.error(
             "ES timed out the request. We'll re-add this prefix into the array so that if gets processed..",
           );
           this.allUsernamePrefixes.push(prefix);
-          users = []; // clean this array to exclude from dumping into the file
           break;
         }
 
         if (result.total >= 10000) {
           // we will generate new prefixes for this char and ignore this iteration result
-          console.log(
+          this.logger.log(
             `Prefix: ${prefix} | Found ${result.total} > 10000; narrowing down search over sub-prefixes...`,
           );
           this.generatePrefixes(prefix);
@@ -220,39 +226,55 @@ export class FaDataMigrateService {
 
         totalResults += result.users ? result.users.length : 0;
         if (result.users) {
-          users = users.concat(
+          this.downloadAddons.users = this.downloadAddons.users.concat(
             result.users.filter((user: User) => {
               if (!this.downloadAddons.uniqueIds.hasOwnProperty(user.id)) {
                 this.downloadAddons.uniqueIds[user.id] = true; // add to unique list
                 user.registrations.forEach((registration) => {
-                  if (!this.downloadAddons.applicationIds.hasOwnProperty(registration.applicationId)) {
-                    this.downloadAddons.applicationIds[registration.applicationId] = {
+                  if (
+                    !this.downloadAddons.applicationIds.hasOwnProperty(
+                      registration.applicationId,
+                    )
+                  ) {
+                    this.downloadAddons.applicationIds[
+                      registration.applicationId
+                    ] = {
                       roles: [],
                     }; // add application id
                   }
                   if (registration && registration.roles) {
                     registration.roles.forEach((role) => {
-                      this.downloadAddons.applicationIds[registration.applicationId].roles.push(role);
-                      this.downloadAddons.applicationIds[registration.applicationId].roles = this.downloadAddons.applicationIds[registration.applicationId].roles.filter(this.onlyUnique);
+                      this.downloadAddons.applicationIds[
+                        registration.applicationId
+                      ].roles.push(role);
+                      this.downloadAddons.applicationIds[
+                        registration.applicationId
+                      ].roles = this.downloadAddons.applicationIds[
+                        registration.applicationId
+                      ].roles.filter(FaDataMigrateService.onlyUnique);
                     });
                   }
                 }); // forEach() ends
 
                 if (user.memberships) {
                   user.memberships.forEach((membership) => {
-                    if (!this.downloadAddons.groups.hasOwnProperty(membership.groupId)) {
+                    if (
+                      !this.downloadAddons.groups.hasOwnProperty(
+                        membership.groupId,
+                      )
+                    ) {
                       this.downloadAddons.groups[membership.groupId] = true;
                     }
-                  })
+                  });
                 }
                 return true;
               }
               return !this.downloadAddons.uniqueIds.hasOwnProperty(user.id);
             }),
-          ); // add all the result into global array
+          );
         }
         startRow = totalResults; // change the stat row
-        console.log(
+        this.logger.log(
           `Prefix: ${prefix} | Found results. Fetched: ${totalResults}/${result.total}`,
         );
         if (
@@ -264,20 +286,26 @@ export class FaDataMigrateService {
         }
       } // while() ends
       this.saveApplicationIdPrefixes(applicationId);
-      users.forEach((user) => {
-        fs.appendFileSync(
-          `./gen/json/${applicationId}.txt`,
-          JSON.stringify(user) + '\n',
-        );
-      });
-      // await this.sleep(500);
     } // while() ends
+    this.downloadAddons.users = this.downloadAddons.users.filter(
+      FaDataMigrateService.onlyUnique,
+    );
+    this.downloadAddons.users.forEach((user: User) => {
+      fs.appendFileSync(
+        `./gen/json/${applicationId}.txt`,
+        JSON.stringify(user) + '\n',
+      );
+    });
+    const recordsDownloaded = this.downloadAddons.users.length;
     this.downloadAddons.uniqueIds = {}; // set empty as we don't want to overload json
+    this.downloadAddons.users = []; // set empty as we don't want to overload json
     fs.writeFileSync(
       `./gen/json/${applicationId}-addons.json`,
       JSON.stringify(this.downloadAddons),
     );
-    return [];
+    return {
+      message: `Records downloaded: ${recordsDownloaded}`,
+    };
   }
 
   async importUsers(users: Array<User>) {
@@ -288,24 +316,33 @@ export class FaDataMigrateService {
         validateDbConstraints: true,
       })
       .then((response: ClientResponse<void>) => {
-        console.log(response);
-        return {};
+        this.logger.log(response);
+        return true;
       })
       .catch((e) => {
-        console.error(`Could not import users`, JSON.stringify(e));
-        return {};
+        this.logger.error(`Could not import users`, JSON.stringify(e));
+        return false;
       });
   }
 
   async upload(applicationId: string, chunkSize = 500) {
     let jsonLine;
     let lineNumber = 0;
-    const jsonLines = new Readline(`./gen/json/${applicationId}.txt`);
+    const filepath = `./gen/json/${applicationId}.txt`;
+    if (!fs.existsSync(filepath)) {
+      throw new UnprocessableEntityException('No file exists to upload!!!');
+    }
+    const jsonLines = new Readline(filepath);
 
     let users: Array<User> = [];
     while ((jsonLine = jsonLines.next())) {
-      if (lineNumber % chunkSize == 0) {
-        await this.importUsers(users);
+      if (lineNumber && lineNumber % chunkSize === 0) {
+        this.logger.log(`Importing ${lineNumber} records...`);
+        if (await this.importUsers(users)) {
+          this.logger.log(`Done..!!`);
+        } else {
+          this.logger.log(`Failed!!`);
+        }
         users = [];
       }
       const user: User = JSON.parse(jsonLine);
@@ -314,7 +351,9 @@ export class FaDataMigrateService {
       lineNumber++;
     }
     await this.importUsers(users); // push the last remaining users
-    console.log('end of file.', lineNumber);
+    return {
+      message: `Records imported: ${lineNumber}`,
+    };
   }
 
   async deleteTargetFaUsers(applicationId: string) {
@@ -324,18 +363,18 @@ export class FaDataMigrateService {
         query: `{"bool":{"must":[{"nested":{"path":"registrations","query":{"bool":{"must":[{"match":{"registrations.applicationId":"${applicationId}"}}]}}}}]}}`,
       })
       .then((response) => {
-        console.log(response);
+        this.logger.log(response);
         return response;
       })
       .catch((e) => {
-        console.log(e);
+        this.logger.log(e);
         return e;
       });
-    console.log(response);
+    this.logger.log(response);
     return response;
   }
 
-  private onlyUnique(value, index, self) {
+  private static onlyUnique(value, index, self) {
     return self.indexOf(value) === index;
   }
 }

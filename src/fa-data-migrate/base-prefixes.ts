@@ -46,11 +46,6 @@ export class BasePrefixes {
   public static all(): Array<string> {
     return this.numberPrefixes
       .concat(this.alphabetPrefixes)
-      .concat(
-        this.alphabetPrefixes.map((ele) => {
-          return ele.toUpperCase();
-        }),
-      )
       .concat(this.specialCharPrefixes);
   }
 }
