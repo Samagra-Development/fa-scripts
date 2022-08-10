@@ -22,7 +22,7 @@ GET http://localhost:3000/fa-data-migrate/upload?applicationId={application-id-h
 
 - Delete:
 ```
-POST {{url}}/fa-data-migrate/delete-target-users?applicationId={application-id-here}
+POST http://localhost:3000/fa-data-migrate/delete-target-users?applicationId={application-id-here}
 ```
 
 **Note:-**
