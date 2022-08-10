@@ -1,27 +1,24 @@
-import { Test } from '@nestjs/testing';
-import { CommandModule, CommandModuleTest } from 'nestjs-command';
+import { Test, TestingModule } from '@nestjs/testing';
+import { INestApplication } from '@nestjs/common';
+import * as request from 'supertest';
 import { AppModule } from '../src/app.module';
 
-describe('AppModule', () => {
-  let commandModule: CommandModuleTest;
+describe('AppController (e2e)', () => {
+  let app: INestApplication;
 
   beforeEach(async () => {
-    const moduleFixture = await Test.createTestingModule({
+    const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
-    const app = moduleFixture.createNestApplication();
+    app = moduleFixture.createNestApplication();
     await app.init();
-    commandModule = new CommandModuleTest(app.select(CommandModule));
   });
 
-  it('test command module', async () => {
-    const command = 'create:user <username>';
-    const args = { username: 'Foo', group: 'Bar', saber: false };
-
-    const user = await commandModule.execute(command, args);
-    console.log(user);
-    expect(user.username).toBe('Foo');
-    expect(user.group).toBe('Bar');
+  it('/ (GET)', () => {
+    return request(app.getHttpServer())
+      .get('/')
+      .expect(200)
+      .expect('Hello World!');
   });
 });
