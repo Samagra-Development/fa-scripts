@@ -228,6 +228,9 @@ export class FaDataMigrateService {
         if (result.users) {
           this.downloadAddons.users = this.downloadAddons.users.concat(
             result.users.filter((user: User) => {
+              // we don't have to migrate membership of the users; so let's unset them
+              user.memberships = [];
+
               if (!this.downloadAddons.uniqueIds.hasOwnProperty(user.id)) {
                 this.downloadAddons.uniqueIds[user.id] = true; // add to unique list
                 user.registrations.forEach((registration) => {
@@ -341,7 +344,7 @@ export class FaDataMigrateService {
         if (await this.importUsers(users)) {
           this.logger.log(`Done..!!`);
         } else {
-          this.logger.log(`Failed!!`);
+          this.logger.error(`Failed!!`);
         }
         users = [];
       }
