@@ -1,8 +1,14 @@
 # fa-scripts
 Utility scripts for Fusion Auth to download and upload data from source & target respectively.
 
-# Command line library used
+## Command line library used
 https://www.npmjs.com/package/nestjs-command
+
+## Installation
+
+```bash
+$ yarn install
+```
 
 ## Run program
 Please ensure the variables have been configured for source & target Fusion Auth URLs & API keys (as available in sample `.env.example`).
