@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Query } from "@nestjs/common";
+import { Controller, Get, Post, Query } from '@nestjs/common';
 import { FaDataMigrateService } from './fa-data-migrate.service';
 
 @Controller('fa-data-migrate')

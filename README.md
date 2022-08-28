@@ -32,8 +32,8 @@ POST http://localhost:3000/fa-data-migrate/delete-target-users?applicationId={ap
 ```
 
 **Note:-**
-- Ensure the API key you are using has access to search users API for downloading the data.
-- Ensure the API key you are using has access to bulk users import API for uploading the data.
-- Ensure the API key you are using has access to delete users API for deleting the data.
+- Ensure the API key you are using has access to search users API for downloading the data (GET|POST /api/user/search).
+- Ensure the API key you are using has access to bulk users import API for uploading the data (GET|POST /api/user/import).
+- Ensure the API key you are using has access to delete users API for deleting the data (not mandatory).
 - Both the command & the download APi will create file named `{application-id-here}.txt` at path `gen/json` which contains each user row JSON at each line. If FA Elastic Search responds with any error or request timed out, the codes will keep trying to download the data unless all the records have been downloaded.
 - Before uploading data, make sure all the Application IDs exists on target FA and have the respective roles created beforehand. The list of Application IDs and roles information is available in the file generated at path `gen/json/{application-id-here}-addons.json` (directory available at root path). 
