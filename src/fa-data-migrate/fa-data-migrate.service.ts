@@ -19,10 +19,10 @@ import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class FaDataMigrateService {
-  private sourceFaBaseUrl: string;
-  private sourceFaApiKey: string;
-  private targetFaBaseUrl: string;
-  private targetFaApiKey: string;
+  private readonly sourceFaBaseUrl: string;
+  private readonly sourceFaApiKey: string;
+  private readonly targetFaBaseUrl: string;
+  private readonly targetFaApiKey: string;
   private readonly defaultUserImportPassword: string;
   private allUsernamePrefixes: Array<string>;
 
@@ -80,18 +80,12 @@ export class FaDataMigrateService {
     );
   }
 
-  private static faSourceClient(): FusionAuthClient {
-    return new FusionAuthClient(
-      process.env.SOURCE_FA_API_KEY,
-      process.env.SOURCE_FA_BASE_URL,
-    );
+  private faSourceClient(): FusionAuthClient {
+    return new FusionAuthClient(this.sourceFaApiKey, this.sourceFaBaseUrl);
   }
 
-  private static faTargetClient(): FusionAuthClient {
-    return new FusionAuthClient(
-      process.env.TARGET_FA_API_KEY,
-      process.env.TARGET_FA_BASE_URL,
-    );
+  private faTargetClient(): FusionAuthClient {
+    return new FusionAuthClient(this.targetFaApiKey, this.targetFaBaseUrl);
   }
 
   private generatePrefixes(basePrefix: string) {
@@ -136,7 +130,7 @@ export class FaDataMigrateService {
       };
     };
 
-    const callFa = FaDataMigrateService.faSourceClient()
+    const callFa = this.faSourceClient()
       .searchUsersByQuery(searchRequest)
       .then(
         (
@@ -313,7 +307,7 @@ export class FaDataMigrateService {
 
   async importUsers(users: Array<User>) {
     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    return FaDataMigrateService.faTargetClient()
+    return this.faTargetClient()
       .importUsers({
         users: users,
         validateDbConstraints: true,
@@ -360,16 +354,18 @@ export class FaDataMigrateService {
   }
 
   async deleteTargetFaUsers(applicationId: string) {
-    const response = await FaDataMigrateService.faTargetClient()
+    const response = await this.faTargetClient()
       .deleteUsersByQuery({
         hardDelete: true,
         query: `{"bool":{"must":[{"nested":{"path":"registrations","query":{"bool":{"must":[{"match":{"registrations.applicationId":"${applicationId}"}}]}}}}]}}`,
       })
       .then((response) => {
+        console.log(response);
         this.logger.log(response);
         return response;
       })
       .catch((e) => {
+        console.log(e);
         this.logger.log(e);
         return e;
       });
