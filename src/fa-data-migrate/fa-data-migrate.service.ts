@@ -25,6 +25,8 @@ export class FaDataMigrateService {
   private readonly targetFaApiKey: string;
   private readonly defaultUserImportPassword: string;
   private allUsernamePrefixes: Array<string>;
+  private readonly downloadChunkSize: number;
+  private readonly uploadChunkSize: number;
 
   private readonly logger = new Logger(FaDataMigrateService.name); // logger instance
 
@@ -51,6 +53,11 @@ export class FaDataMigrateService {
     this.targetFaApiKey = configService.get<string>('TARGET_FA_API_KEY');
     this.defaultUserImportPassword = configService.get<string>(
       'DEFAULT_USER_IMPORT_PASSWORD',
+    );
+    this.uploadChunkSize = configService.get<number>('UPLOAD_CHUNK_SIZE', 500);
+    this.downloadChunkSize = configService.get<number>(
+      'DOWNLOAD_CHUNK_SIZE',
+      500,
     );
   }
 
@@ -177,7 +184,10 @@ export class FaDataMigrateService {
     return result;
   }
 
-  async download(applicationId: string, numberOfResults = 500): Promise<any> {
+  async download(
+    applicationId: string,
+    numberOfResults = this.downloadChunkSize,
+  ): Promise<any> {
     this.loadApplicationIdPrefixes(applicationId); // load the prefixes from file or all if it's a fresh start
     while (true) {
       if (this.allUsernamePrefixes.length === 0) {
@@ -310,7 +320,7 @@ export class FaDataMigrateService {
     return this.faTargetClient()
       .importUsers({
         users: users,
-        validateDbConstraints: true,
+        validateDbConstraints: false,
       })
       .then((response: ClientResponse<void>) => {
         this.logger.log(response);
@@ -322,7 +332,7 @@ export class FaDataMigrateService {
       });
   }
 
-  async upload(applicationId: string, chunkSize = 500) {
+  async upload(applicationId: string, chunkSize = this.uploadChunkSize) {
     let jsonLine;
     let lineNumber = 0;
     const filepath = `./gen/json/${applicationId}.txt`;
