@@ -14,6 +14,7 @@ $ yarn install
 Please ensure the variables have been configured for source & target Fusion Auth URLs & API keys (as available in sample `.env.example`).
 - Command to download data from source: `npx nestjs-command download:users {application-id-here}`
 - Command to upload data to source: `npx nestjs-command upload:users {application-id-here}`
+- Command to extract CSV from the downloaded data: `npx nestjs-command extract:csv {application-id-here}`
 
 You can also hit the below mentioned APIs:
 - Download:

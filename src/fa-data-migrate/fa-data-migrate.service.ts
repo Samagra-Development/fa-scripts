@@ -27,6 +27,7 @@ export class FaDataMigrateService {
   private allUsernamePrefixes: Array<string>;
   private readonly downloadChunkSize: number;
   private readonly uploadChunkSize: number;
+  private readonly csvExportColumns: string;
 
   private readonly logger = new Logger(FaDataMigrateService.name); // logger instance
 
@@ -59,6 +60,7 @@ export class FaDataMigrateService {
       'DOWNLOAD_CHUNK_SIZE',
       500,
     );
+    this.csvExportColumns = configService.get<string>('CSV_EXPORT_COLUMNS');
   }
 
   private loadApplicationIdPrefixes(applicationId: string) {
@@ -129,7 +131,7 @@ export class FaDataMigrateService {
       const timeoutPromise = new Promise((_, reject) => {
         timeoutId = setTimeout(() => {
           reject(new Error('Request timed out'));
-        }, 1000);
+        }, 5000);
       });
       return {
         promiseOrTimeout: Promise.race([promise, timeoutPromise]),
@@ -385,5 +387,67 @@ export class FaDataMigrateService {
 
   private static onlyUnique(value, index, self) {
     return self.indexOf(value) === index;
+  }
+
+  async extractCsv(applicationId: string) {
+    const filePath = `./gen/json/${applicationId}.txt`;
+    // Importing the Required Modules
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const fs = require('fs');
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const readline = require('readline');
+
+    // Creating a readable stream from file
+    // readline module reads line by line
+    // but from a readable stream only.
+    const file = readline.createInterface({
+      input: fs.createReadStream(filePath),
+      output: process.stdout,
+      terminal: false,
+    });
+
+    let csvData = `${this.csvExportColumns}\n`;
+    const columns = this.csvExportColumns.split(',');
+    console.log(columns);
+    file.on('line', (line) => {
+      const user: object = JSON.parse(line);
+      const registration = user['registrations'].filter(
+        (reg) => reg['applicationId'] == applicationId,
+      );
+      // console.log("Old Object: ", user);
+      user['registration'] = registration[0];
+      delete user['registrations']; // delete all the redundant registrations
+
+      // let's flatten the object
+      const userFlattened = this.flattenObject(user);
+
+      const csvLineArray = [];
+      for (const key of columns) {
+        let val = userFlattened[key] || '';
+        if (val.includes(' ')) {
+          val = `"${val}"`;
+        }
+        csvLineArray.push(val);
+      }
+      const csvLine = csvLineArray.join(',');
+      console.log(csvLine);
+      csvData += csvLine + '\n';
+    });
+    file.on('close', () => {
+      // write to CSV file
+      const csvFile = `./gen/json/${applicationId}.csv`;
+      fs.writeFileSync(csvFile, csvData);
+      console.log('CSV written successfully.');
+    });
+  }
+
+  flattenObject(obj, prefix = '') {
+    return Object.keys(obj).reduce((acc, k) => {
+      const pre = prefix.length ? prefix + '.' : '';
+      if (typeof obj[k] === 'object')
+        Object.assign(acc, this.flattenObject(obj[k], pre + k));
+      else acc[pre + k] = obj[k];
+      return acc;
+    }, {});
   }
 }

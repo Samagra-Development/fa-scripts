@@ -37,4 +37,20 @@ export class FaDataMigrateCommand {
   ): Promise<any> {
     return this.service.upload(applicationId);
   }
+
+  @Command({
+    command: 'extract:csv <applicationId>',
+    describe:
+      'Extract CSV for the given input columns from the downloaded JSON txt file',
+  })
+  async extractCsv(
+    @Positional({
+      name: 'applicationId',
+      describe: 'Application ID',
+      type: 'string',
+    })
+    applicationId: string,
+  ): Promise<any> {
+    return this.service.extractCsv(applicationId);
+  }
 }
