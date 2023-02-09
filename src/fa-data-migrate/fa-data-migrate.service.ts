@@ -424,7 +424,7 @@ export class FaDataMigrateService {
       const csvLineArray = [];
       for (const key of columns) {
         let val = userFlattened[key] || '';
-        if (val.includes(' ')) {
+        if (val.toString().includes(' ')) {
           val = `"${val}"`;
         }
         csvLineArray.push(val);
